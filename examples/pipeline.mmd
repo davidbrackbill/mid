@@ -1,0 +1,13 @@
+graph TD
+    Start[Start Pipeline] --> Validate[Validate Input]
+    Validate -->|valid| Parse[Parse Data]
+    Validate -->|invalid| Error[Error Handler]
+    Parse --> Transform[Transform]
+    Transform --> Enrich[Enrich Data]
+    Enrich --> Save[Save to DB]
+    Save --> Notify[Send Notification]
+    Error --> Retry[Retry Logic]
+    Retry -->|success| Parse
+    Retry -->|failed| Alert[Alert Team]
+    Notify --> End[Complete]
+    Alert --> End

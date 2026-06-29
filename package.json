@@ -1,0 +1,48 @@
+{
+	"name": "@davidbrackbill/mid",
+	"version": "0.1.0",
+	"description": "Render Markdown bullet lists (and Mermaid) as graphs — TypeScript core + CLI.",
+	"type": "module",
+	"module": "src/index.ts",
+	"license": "MIT",
+	"author": "David Brackbill (https://github.com/davidbrackbill)",
+	"homepage": "https://github.com/davidbrackbill/mid",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/davidbrackbill/mid.git"
+	},
+	"bugs": {
+		"url": "https://github.com/davidbrackbill/mid/issues"
+	},
+	"keywords": [
+		"markdown",
+		"mermaid",
+		"graph",
+		"diagram",
+		"ascii",
+		"dagre",
+		"neovim",
+		"obsidian"
+	],
+	"bin": {
+		"mid": "src/cli.ts"
+	},
+	"scripts": {
+		"test": "bun test",
+		"build": "bun build src/cli.ts --compile --outfile dist/mid",
+		"typecheck": "tsc --noEmit",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
+		"lint": "biome lint .",
+		"lint:fix": "biome check --write .",
+		"format:lua": "stylua plugins/nvim",
+		"check": "biome check . && tsc --noEmit && bun test"
+	},
+	"dependencies": {
+		"@dagrejs/dagre": "^1.1.4"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.1",
+		"@types/bun": "latest"
+	}
+}

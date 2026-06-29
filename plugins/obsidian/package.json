@@ -1,0 +1,23 @@
+{
+	"name": "mid-obsidian",
+	"version": "0.1.0",
+	"description": "Obsidian plugin for mid — render mid/mermaid fenced blocks as ASCII graphs.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "node esbuild.config.mjs production",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [],
+	"author": "mid",
+	"license": "MIT",
+	"dependencies": {
+		"@dagrejs/dagre": "^1.1.4"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"esbuild": "^0.20.0",
+		"obsidian": "^1.4.11",
+		"typescript": "^5.3.0"
+	}
+}

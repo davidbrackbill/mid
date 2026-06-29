@@ -1,0 +1,10 @@
+{
+	"id": "mid",
+	"name": "Mid",
+	"version": "0.1.0",
+	"minAppVersion": "1.4.0",
+	"description": "Render mid and mermaid fenced code blocks as native Mermaid graphs above their editable source — the cursor mirrors onto the graph, click a node to jump to its source line.",
+	"author": "David Brackbill",
+	"authorUrl": "https://github.com/davidbrackbill",
+	"isDesktopOnly": true
+}
