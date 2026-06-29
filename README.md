@@ -41,6 +41,22 @@ A graph is a bulleted list — **indentation defines parent/child**, and a
   - E
 ```
 
+GitHub renders the graph below — it's the Mermaid that `mid` emits from the
+bullets above (`toMermaid`, the same conversion the Obsidian plugin uses):
+
+```mermaid
+graph TD
+  n0[A]
+  n1[B]
+  n2[C]
+  n3[D]
+  n4[E]
+  n0 --> n1
+  n1 -->|A goes to C| n2
+  n0 --> n3
+  n2 --> n4
+```
+
 A name referenced again is the **same** node, so trees become DAGs (here `C` is
 shared) and top-level bullets aren't always roots.
 
