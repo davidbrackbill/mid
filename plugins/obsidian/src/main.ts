@@ -1,10 +1,11 @@
 /*
  * mid — Obsidian plugin.
  *
- * A ```mid fenced block (markdown bullets / nested [label](target) edges) is shown
- * as a graph by converting the parsed graph to Mermaid (mid core's `toMermaid`) and
- * letting Obsidian render its built-in Mermaid **SVG** — so the diagram looks
- * native. The mid TS core (../../../src) is imported directly (Electron); no subprocess.
+ * A ```mid fenced block (markdown bullets / nested [label](target) edges) or a
+ * ```maid fenced block (mermaid flowchart syntax) is shown as a graph by converting
+ * the parsed graph to Mermaid (mid core's `toMermaid`) and letting Obsidian render
+ * its built-in Mermaid **SVG** — so the diagram looks native. The mid TS core
+ * (../../../src) is imported directly (Electron); no subprocess.
  *
  * UX mirrors mid.nvim's "fences" model, identically for both block types:
  *   - the Mermaid SVG sits **above** the block and stays visible while editing;
@@ -25,9 +26,10 @@
  *     + a static source copy; interactions there are inert. The processor bails in
  *     Live Preview so it never fights the StateField.
  *
- * Only `mid` is owned. A ` ```mermaid ` block is rendered by Obsidian's own
+ * `mid` and `maid` are owned; ` ```mermaid ` itself is rendered by Obsidian's own
  * live-preview renderer, which a plugin can't suppress without hiding the editable
- * source, so mermaid is left native (see OWNED).
+ * source, so mermaid is left native — `maid` is the escape hatch for mermaid-syntax
+ * content that wants the mid UX instead (see FENCE_LANGS).
  */
 
 import {
@@ -56,21 +58,25 @@ import {
 
 import {
 	type Edge,
+	type Format,
 	type Graph,
 	type Node,
-	parseMarkdown,
+	parse,
 	toMermaid,
 } from "../../../src/index.ts";
 
 const HL = "mid-hl"; // class toggled on the selected SVG node
 const HL_EDGE = "mid-hl-edge"; // class toggled on the selected SVG edge path
 
-// We own only ` ```mid ` blocks. A ` ```mermaid ` block is rendered by Obsidian's
-// own live-preview CM extension, which a plugin can't suppress without a
-// block-*replace* decoration over the whole block — and that would hide the
-// editable source we want. So mermaid is left to the native renderer. (Want the mid
-// UX with a mermaid diagram? Use a ` ```mid ` block — it renders as the same SVG.)
-const FENCE_OPEN = /^\s*`{3,}\s*mid\s*$/;
+// We own ` ```mid ` (markdown bullets) and ` ```maid ` (mermaid syntax) blocks. A
+// ` ```mermaid ` block is rendered by Obsidian's own live-preview CM extension, which
+// a plugin can't suppress without a block-*replace* decoration over the whole block
+// — and that would hide the editable source we want. So `mermaid` itself is left to
+// the native renderer; `maid` is the escape hatch for mermaid-syntax content that
+// wants the mid UX (cursor mirror, click-to-source) instead. Mirrors mid.nvim's
+// `languages = { mid = "md", mermaid = "mmd" }` table, minus the taken `mermaid` tag.
+const FENCE_LANGS: Record<string, Format> = { mid: "md", maid: "mmd" };
+const FENCE_OPEN = /^\s*`{3,}\s*(mid|maid)\s*$/;
 const FENCE_CLOSE = /^\s*`{3,}\s*$/;
 
 /** Synthetic node id (`n0`) from a rendered mermaid `<g id="flowchart-n0-3">`. */
@@ -189,12 +195,13 @@ function highlightTarget(
 
 export default class MidPlugin extends Plugin {
 	onload(): void {
-		// Reading view: render the SVG + a static source copy. (Only `mid`; mermaid is
-		// left to Obsidian's native renderer — see OWNED.) The processor bails in Live
-		// Preview, where the StateField/ViewPlugin renders instead.
-		this.registerMarkdownCodeBlockProcessor("mid", (src, el, ctx) =>
-			this.renderReadingBlock(src, el, ctx),
-		);
+		// Reading view: render the SVG + a static source copy. (`mid` and `maid`;
+		// `mermaid` itself is left to Obsidian's native renderer.) The processor bails
+		// in Live Preview, where the StateField/ViewPlugin renders instead.
+		for (const [lang, format] of Object.entries(FENCE_LANGS))
+			this.registerMarkdownCodeBlockProcessor(lang, (src, el, ctx) =>
+				this.renderReadingBlock(src, el, ctx, format),
+			);
 		// Live Preview (primary renderer for mid blocks).
 		this.registerEditorExtension(livePreviewExtension(this));
 		// Command: wrap the current selection (a bullet list) in a ```mid block so it
@@ -227,6 +234,7 @@ export default class MidPlugin extends Plugin {
 		src: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
+		format: Format,
 	): Promise<void> {
 		// Detecting Live Preview by DOM ancestry is unreliable: the processor's `el`
 		// is still detached when this runs, so `.markdown-source-view` isn't found
@@ -243,7 +251,7 @@ export default class MidPlugin extends Plugin {
 		el.addClass("mid-container");
 		let graph: Graph;
 		try {
-			graph = parseMarkdown(src);
+			graph = parse(src, format);
 		} catch (e) {
 			el.createEl("pre", { cls: "mid-error" }).setText(
 				`mid: ${e instanceof Error ? e.message : String(e)}`,
@@ -280,18 +288,20 @@ export default class MidPlugin extends Plugin {
 interface Block {
 	open: number;
 	close: number;
+	format: Format;
 } // 1-indexed fence lines
 
-/** Find ```mid fenced blocks (terminated only). Lines are 1-indexed; `open`/`close`
- *  are the fence lines, content is the lines strictly between. */
+/** Find ```mid / ```maid fenced blocks (terminated only). Lines are 1-indexed;
+ *  `open`/`close` are the fence lines, content is the lines strictly between. */
 function findBlocks(doc: Text): Block[] {
 	const out: Block[] = [];
 	for (let i = 1; i <= doc.lines; i++) {
-		if (!FENCE_OPEN.test(doc.line(i).text)) continue;
+		const m = FENCE_OPEN.exec(doc.line(i).text);
+		if (!m) continue;
 		let j = i + 1;
 		while (j <= doc.lines && !FENCE_CLOSE.test(doc.line(j).text)) j++;
 		if (j > doc.lines) break; // unterminated: don't render a half-typed block
-		out.push({ open: i, close: j });
+		out.push({ open: i, close: j, format: FENCE_LANGS[m[1]!]! });
 		i = j;
 	}
 	return out;
@@ -349,6 +359,7 @@ function scheduleRender(
 	plugin: MidPlugin,
 	wrap: HTMLElement,
 	source: string,
+	format: Format,
 ): void {
 	const st = wrapState(wrap);
 	const token = ++st.token;
@@ -356,7 +367,7 @@ function scheduleRender(
 	st.timer = setTimeout(() => {
 		let graph: Graph;
 		try {
-			graph = parseMarkdown(source);
+			graph = parse(source, format);
 		} catch (e) {
 			const err = document.createElement("pre");
 			err.className = "mid-error";
@@ -388,11 +399,12 @@ class GraphWidget extends WidgetType {
 	constructor(
 		readonly plugin: MidPlugin,
 		readonly source: string,
+		readonly format: Format,
 	) {
 		super();
 	}
 	eq(o: GraphWidget): boolean {
-		return o.source === this.source;
+		return o.source === this.source && o.format === this.format;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const wrap = document.createElement("div");
@@ -437,14 +449,14 @@ class GraphWidget extends WidgetType {
 			});
 			view.focus();
 		});
-		scheduleRender(this.plugin, wrap, this.source);
+		scheduleRender(this.plugin, wrap, this.source, this.format);
 		return wrap;
 	}
 	/** Reuse the existing DOM (and its click handler) and re-render in place — this is
 	 *  what kills the flicker; without it CM tears the node down and rebuilds it. */
 	updateDOM(dom: HTMLElement, _view: EditorView): boolean {
 		if (!wrapState(dom)) return false; // not one of ours; let CM replace it
-		scheduleRender(this.plugin, dom, this.source);
+		scheduleRender(this.plugin, dom, this.source, this.format);
 		return true;
 	}
 	ignoreEvent(): boolean {
@@ -463,7 +475,7 @@ function buildDecos(plugin: MidPlugin, state: EditorState): DecorationSet {
 			at,
 			at,
 			Decoration.widget({
-				widget: new GraphWidget(plugin, blockContent(doc, b)),
+				widget: new GraphWidget(plugin, blockContent(doc, b), b.format),
 				block: true,
 				side: -1,
 			}),
@@ -534,7 +546,7 @@ function midInteraction() {
 				if (!b) return; // cursor not on a content line of any block
 				let graph: Graph;
 				try {
-					graph = parseMarkdown(blockContent(doc, b));
+					graph = parse(blockContent(doc, b), b.format);
 				} catch {
 					return; // mid-edit parse error: leave the last good highlight
 				}
