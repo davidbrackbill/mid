@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { toMermaid } from "../src/convert.ts";
+import { toMarkdown, toMermaid } from "../src/convert.ts";
 import { parse, sniffFormat } from "../src/index.ts";
 import { layout } from "../src/layout.ts";
 import { parseMarkdown } from "../src/markdown.ts";
@@ -274,5 +274,41 @@ describe("toMermaid (converter)", () => {
 	test("\\n in an edge label becomes a <br/>", () => {
 		const { text } = toMermaid(parseMarkdown("- A\n  - [one\\ntwo](B)\n"));
 		expect(text).toContain("|one<br/>two|");
+	});
+});
+
+describe("toMarkdown (converter)", () => {
+	test("mermaid → mid bullets, same graph", () => {
+		const md = toMarkdown(parseMermaid("graph TD\n  A --> B\n  B -->|ok| C\n"));
+		const g2 = parseMarkdown(md);
+		expect(edges(g2).get("A->B")).toBe(null);
+		expect(edges(g2).get("B->C")).toBe("ok");
+	});
+
+	test("a shared node round-trips as the same node, not duplicated", () => {
+		const g1 = parseMermaid("graph TD\n  A --> C\n  B --> C\n  C --> D\n");
+		const g2 = parseMarkdown(toMarkdown(g1));
+		expect([...g2.nodes.keys()].sort()).toEqual(["A", "B", "C", "D"]);
+		expect([...edges(g2).keys()].sort()).toEqual(["A->C", "B->C", "C->D"]);
+	});
+
+	test("a cycle terminates instead of recursing forever", () => {
+		const g1 = parseMermaid("graph TD\n  A --> B\n  B --> A\n");
+		const md = toMarkdown(g1);
+		expect(md.split("\n").length).toBeLessThanOrEqual(3);
+		const g2 = parseMarkdown(md);
+		expect([...edges(g2).keys()].sort()).toEqual(["A->B", "B->A"]);
+	});
+
+	test("<br/> becomes a literal \\n (inverse of toMermaid)", () => {
+		const g1 = parseMermaid("graph TD\n  A[foo<br/>bar]\n");
+		expect(toMarkdown(g1)).toContain("foo\\nbar");
+	});
+
+	test("round-trips through mermaid and back to the same edges", () => {
+		const src = "- A\n  - [go](B)\n    - C\n  - D\n";
+		const g1 = parseMarkdown(src);
+		const g2 = parseMarkdown(toMarkdown(parseMermaid(toMermaid(g1).text)));
+		expect(edges(g1)).toEqual(edges(g2));
 	});
 });

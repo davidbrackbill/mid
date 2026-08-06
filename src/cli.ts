@@ -1,13 +1,21 @@
 #!/usr/bin/env bun
 /**
- * mid CLI — render a Markdown bullet list (or Mermaid) graph as ASCII or JSON.
+ * mid CLI — render a Markdown bullet list (or Mermaid) graph as ASCII/JSON, or
+ * convert between the two syntaxes.
  *
  *   mid render file.md              ASCII → stdout
  *   mid render --json file.md       {nodes, edges, ascii} → stdout
- *   mid render --format mmd -       read Mermaid from stdin
  *   mid render --select NAME ...    highlight a node (heavy box)
+ *   mid convert file.md             → Mermaid (opposite of the input format)
+ *   mid convert file.mmd            → mid bullets
+ *   mid convert - < file.mmd        read from stdin, format sniffed from content
+ *
+ * `--format md|mmd` is only needed to override auto-detection (e.g. content
+ * that doesn't sniff cleanly); by default the format is inferred from the
+ * source, not from you.
  */
-import { type Format, parse } from "./index.ts";
+import { toMarkdown, toMermaid } from "./convert.ts";
+import { type Format, parse, sniffFormat } from "./index.ts";
 import { layout } from "./layout.ts";
 import { ParseError } from "./markdown.ts";
 import { renderAscii, toJSON } from "./render.ts";
@@ -45,28 +53,29 @@ async function readSource(source: string | undefined): Promise<string> {
 	return await Bun.file(source).text();
 }
 
-function formatFor(args: Args): Format | undefined {
-	if (args.format) return args.format;
-	if (args.source && args.source !== "-") {
-		return args.source.endsWith(".mmd") ? "mmd" : "md";
-	}
-	return undefined; // let parse() sniff from content
-}
+const USAGE =
+	"Usage: mid render [--json] [--format md|mmd] [--select NAME] <file|->\n" +
+	"       mid convert [--format md|mmd] <file|->\n";
 
 async function main() {
 	const args = parseArgs(Bun.argv.slice(2));
 
-	if (args.cmd !== "render") {
-		process.stderr.write(
-			"Usage: mid render [--json] [--format md|mmd] [--select NAME] <file|->\n",
-		);
+	if (args.cmd !== "render" && args.cmd !== "convert") {
+		process.stderr.write(USAGE);
 		process.exit(args.cmd ? 1 : 0);
 	}
 
 	try {
 		const text = await readSource(args.source);
-		const fmt = formatFor(args);
+		const fmt = args.format ?? sniffFormat(text);
 		const graph = parse(text, fmt);
+
+		if (args.cmd === "convert") {
+			const out = fmt === "md" ? toMermaid(graph).text : toMarkdown(graph);
+			process.stdout.write(`${out}\n`);
+			return;
+		}
+
 		const lay = layout(graph);
 		const opts = { selected: args.select };
 		if (args.json) {

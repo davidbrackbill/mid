@@ -69,7 +69,7 @@ accepted as input.
 ```bash
 bun install
 
-# render an example to ASCII (auto-detects .md vs .mmd)
+# render an example to ASCII (format is sniffed from content, not extension)
 bun run src/cli.ts render examples/tree.md
 bun run src/cli.ts render examples/pipeline.mmd
 
@@ -79,8 +79,12 @@ cat examples/flow.md | bun run src/cli.ts render -
 # structured output: { nodes, edges, ascii }
 bun run src/cli.ts render --json examples/tree.md
 
-# highlight a node, force a format
+# highlight a node, or force a format if content doesn't sniff cleanly
 bun run src/cli.ts render --select C --format md examples/tree.md
+
+# convert between the two syntaxes — md → mmd, or mmd → md
+bun run src/cli.ts convert examples/tree.md
+bun run src/cli.ts convert examples/pipeline.mmd
 
 # tests
 bun test
@@ -88,17 +92,22 @@ bun test
 # build a standalone binary (no runtime needed to run it)
 bun run build        # → dist/mid
 ./dist/mid render examples/tree.md
+./dist/mid convert examples/tree.md
 ```
 
 ## API
 
 ```ts
 import { parse, layout, renderAscii, toJSON } from "./src/index.ts";
+import { toMermaid, toMarkdown } from "./src/convert.ts";
 
 const graph = parse(text);          // sniffs md vs mmd; or parse(text, "mmd")
 const lay = layout(graph);          // dagre layered layout
 const art = renderAscii(graph, lay);
 const json = toJSON(graph, lay);    // { nodes, edges, ascii } for SVG/native clients
+
+const mmd = toMermaid(graph).text;  // graph → Mermaid flowchart syntax
+const md = toMarkdown(graph);       // graph → mid bullet list
 ```
 
 ## Layout

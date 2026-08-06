@@ -9,7 +9,7 @@
  * as the label, so a node name can contain spaces/punctuation safely and a
  * client can map name → id (via the returned map) to find the rendered SVG node.
  */
-import type { Graph } from "./model.ts";
+import type { Edge, Graph } from "./model.ts";
 
 export interface Mermaid {
 	/** the `graph TD …` source */
@@ -43,4 +43,48 @@ export function toMermaid(graph: Graph): Mermaid {
 		);
 	}
 	return { text: lines.join("\n"), ids };
+}
+
+/** Render a `<br/>` (Mermaid's line break) back to a literal `\n` — the
+ *  inverse of `label()`'s <br/> rewrite, so round-tripping through mermaid and back
+ *  reproduces the original mid bullet text. */
+function unbreak(s: string): string {
+	return s.replace(/<br\s*\/?>/gi, "\\n");
+}
+
+/**
+ * Render a graph back out to a mid bullet list. Since the bullet grammar is a
+ * tree (indentation) with reuse-by-name for DAGs/cycles, each node is fully
+ * expanded (its children rendered as nested bullets) only at its **first**
+ * visit; every later reference to that name is a leaf bullet, matching how the
+ * parser treats a repeated name as "same node, no new children" once it's on
+ * the stack.
+ */
+export function toMarkdown(graph: Graph): string {
+	const outgoing = new Map<string, Edge[]>();
+	for (const e of graph.edges) {
+		if (!outgoing.has(e.src)) outgoing.set(e.src, []);
+		outgoing.get(e.src)!.push(e);
+	}
+
+	const lines: string[] = [];
+	const expanded = new Set<string>();
+
+	function visit(name: string, depth: number, edgeLabel: string | undefined) {
+		const indent = "  ".repeat(depth);
+		const text = edgeLabel ? `[${unbreak(edgeLabel)}](${name})` : unbreak(name);
+		lines.push(`${indent}- ${text}`);
+		if (expanded.has(name)) return; // already expanded elsewhere — leaf reference
+		expanded.add(name);
+		for (const e of outgoing.get(name) ?? []) visit(e.dst, depth + 1, e.label);
+	}
+
+	// Roots first (stable, readable output), then anything left over — isolated
+	// nodes, or nodes only reachable via a cycle with no entry point.
+	for (const n of graph.entryNodes())
+		if (!expanded.has(n.name)) visit(n.name, 0, undefined);
+	for (const name of graph.nodes.keys())
+		if (!expanded.has(name)) visit(name, 0, undefined);
+
+	return lines.join("\n");
 }
