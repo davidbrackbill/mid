@@ -86,3 +86,29 @@ describe("cli render", () => {
 		expect(err).toContain("unknown --format");
 	});
 });
+
+describe("cli convert", () => {
+	test("markdown → mermaid, format sniffed", async () => {
+		const { out, code } = await run(["convert", "-"], "- A\n  - B\n");
+		expect(code).toBe(0);
+		expect(out).toContain("graph TD");
+		expect(out).toContain("[A]");
+	});
+
+	test("mermaid → markdown bullets, format sniffed", async () => {
+		const { out, code } = await run(["convert", "-"], "graph TD\n  A --> B\n");
+		expect(code).toBe(0);
+		expect(out.trim().startsWith("-")).toBe(true);
+		expect(out).toContain("A");
+		expect(out).toContain("B");
+	});
+
+	test("--format overrides sniffing", async () => {
+		const { out, code } = await run(
+			["convert", "--format", "mmd", "-"],
+			"graph TD\n  A --> B\n",
+		);
+		expect(code).toBe(0);
+		expect(out.trim().startsWith("-")).toBe(true);
+	});
+});

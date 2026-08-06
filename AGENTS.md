@@ -56,14 +56,20 @@ Markdown has ≤1 node-name/line, mermaid up to 2. This is why the source map is
   returns centers + per-edge `labelPos`.
 - `convert.ts` — `toMermaid(graph)` → `{text, ids}`: flowchart syntax with stable
   synthetic ids (`n0`…), names as labels, `\n`→`<br/>`. `ids` (name→id) lets Obsidian
-  find a node's `<g id="flowchart-n0-…">`.
+  find a node's `<g id="flowchart-n0-…">`. `toMarkdown(graph)` is the inverse
+  direction: mid bullets, `<br/>`→`\n`; a node is expanded (children emitted) only
+  on its first visit, so a reused node or a cycle becomes a leaf reference instead
+  of recursing forever.
 - `render.ts` — `renderAscii(graph, lay, {selected?})`, `toJSON`, `render`. Down-horiz-
   down edge routing; labels at `labelPos`; selected node → heavy box. `renderGrid`
   reports each node's `cell` rect and each **labeled** edge's label `cell` (keyed
   `src\x00dst`), both mapped through the blank-row `compress`. The connector line is
   not a cell (compressed away) — the label is the addressable edge token.
-- `cli.ts` — `mid render [--json] [--format md|mmd] [--select NAME] <file|->`. Ext
-  picks format; stdin (`-`) sniffs.
+- `cli.ts` — `mid render [--json] [--format md|mmd] [--select NAME] <file|->` and
+  `mid convert [--format md|mmd] <file|->`. Format is always content-sniffed
+  (`sniffFormat`) unless `--format` overrides it — no extension-based default.
+  `convert` emits the *other* format from whatever was detected (md→mmd via
+  `toMermaid`, mmd→md via `toMarkdown`).
 
 **The `toJSON` contract (the one thing nvim consumes; Obsidian imports the core
 directly).** Per node `{name, spans, cell}`, per edge `{src, dst, label, spans, cell}`
@@ -73,7 +79,8 @@ directly).** Per node `{name, spans, cell}`, per edge `{src, dst, label, spans, 
 
 ```bash
 bun run src/cli.ts render examples/tree.md   # ASCII (auto-detect format)
-bun test                                      # 37 tests
+bun run src/cli.ts convert examples/tree.md  # → Mermaid (or mmd → mid bullets)
+bun test                                      # 45 tests
 bun run build                                 # → dist/mid standalone binary
 bun run check                                 # biome (lint+format) + tsc + tests — the CI gate
 ```
@@ -208,7 +215,7 @@ plugins.
   taking the block over (and re-showing source); at odds with plain editability.
 - **nvim structural-edit flash** — diff blocks by fingerprint, or use `on_lines` ranges;
   `find_blocks` is a regex scan (treesitter would handle `~~~`/indented fences).
-- **Converter surfaces** — `mid convert --to mmd` verb + SVG serializer; export commands.
+- **Converter surfaces** — SVG serializer; export commands (`mid convert` — md↔mmd — is done).
 - **Editing reach in Obsidian** — inline-rename a node (rewrite `spans`), create-child.
 
 ## Maintaining this file
