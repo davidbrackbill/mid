@@ -12,6 +12,11 @@ at repo root: `src/`, `test/`); two thin editor plugins (`plugins/nvim`,
 `plugins/obsidian`) over its JSON contract. Pure parse → layout → render; nodes are
 just names, edges just relationships.
 
+A third format, **sequence diagrams**, parses to its own model (`SeqDiagram`, not
+`Graph` — see below) and currently only converts to Mermaid `sequenceDiagram` syntax;
+it has no ASCII layout/renderer or nvim JSON contract yet (Obsidian gets it for free
+via the Mermaid conversion, same path as flowcharts).
+
 ## The DSL (both syntaxes are edge-oriented)
 
 **Markdown bullets:** indentation = parent/child (`-`/`*`/`+`; tabs→next mult of 4).
@@ -22,10 +27,26 @@ DAGs and roots (`entryNodes()`, no incoming edge) aren't always top-level bullet
 **Mermaid** `.mmd` (`graph`/`flowchart`): arrows may omit spaces (`A-->B`); `|label|`
 and `%%` comments handled.
 
+**Sequence diagrams** (no file extension convention yet — content-sniffed, see
+`sniffFormat`): no indentation, no bullets. Actor declarations (`Client`, or
+`[Authentication Server](Auth)` — brackets = display label, parens = the id messages
+reference) followed by messages, `From > To: Message text` or `From > To` (a *silent
+call*, no text). Self-messages (`Client > Client: retry`) are fine. **v1 supports only
+the `>` arrow** — no return/async/lost (`>>`/`~>`/`x>`) yet, and no comment syntax (a
+line that's neither a declaration nor a message is silently skipped, same as the other
+two formats). An actor mentioned in a message before being declared is auto-created,
+appended after the declared ones — declaration order (not mention order) controls the
+diagram's column order downstream. A bare (bracket-less) declaration must be a single
+word (`/^\w+$/`, same restriction `mermaid.ts` places on a plain node decl) — otherwise
+a stray prose line would silently become a phantom actor.
+
 **Key insight — a line is an *edge*, not a node.** A node recurs on every line that
 references it (`respond` on each `(respond)` bullet; `B` on `A-->B` and `B-->C`).
 Markdown has ≤1 node-name/line, mermaid up to 2. This is why the source map is
-**spans**, not whole lines.
+**spans**, not whole lines. Sequence messages are the exception to "edge" here: unlike
+`Graph.addEdge`, `SeqDiagram.addMessage` never dedups — a message is an ordered event,
+so the same `(from,to)` pair sending three different messages must keep all three (see
+`sequence.ts`'s own model instead of reusing `Graph`).
 
 **Gotchas:**
 - `addEdge` dedups by `(src,dst)` and **keeps the first label** — an unlabelled edge
@@ -48,9 +69,14 @@ Markdown has ≤1 node-name/line, mermaid up to 2. This is why the source map is
   the **raw** line (matches the editor), not the tab-expanded one used for indent.
 - `mermaid.ts` — `parseMermaid`, regex flowchart parser; node span at the id token,
   edge span at the `|label|`.
+- `sequence.ts` — `SeqDiagram` (`actors: Map<id,Actor>`, `messages: Message[]`,
+  undeduped) + `parseSequence`. Its own `addSpan` (mirrors `model.ts`'s, doesn't import
+  it — `Graph`'s dedup-on-add doesn't apply here). No layout/render module — see "What
+  Mid is" above.
 - `text.ts` — node display text; splits the `\n` (the one place that decision lives).
-- `index.ts` — `parse(text, format?)` + `sniffFormat` (Mermaid if starts
-  `graph`/`flowchart`) + re-exports.
+- `index.ts` — `parse(text, format?)` (md/mmd → `Graph`; throws on `seq`, use
+  `parseSequence` directly) + `sniffFormat` (`mmd` if starts `graph`/`flowchart`, `seq`
+  if no line has a bullet marker, else `md`) + re-exports.
 - `layout.ts` — `layout(graph)` via dagre. **Sizes in character units** (w = width+4,
   h = rows+2), so dagre coords map ~1:1 to grid cells. `(x,y)` are node centers;
   returns centers + per-edge `labelPos`.
@@ -59,17 +85,23 @@ Markdown has ≤1 node-name/line, mermaid up to 2. This is why the source map is
   find a node's `<g id="flowchart-n0-…">`. `toMarkdown(graph)` is the inverse
   direction: mid bullets, `<br/>`→`\n`; a node is expanded (children emitted) only
   on its first visit, so a reused node or a cycle becomes a leaf reference instead
-  of recursing forever.
+  of recursing forever. `toMermaidSequence(diagram)` → `{text, ids}`, same
+  synthetic-id treatment (an actor's bare id may contain spaces, which Mermaid
+  participant ids can't); this is the *only* sequence-diagram renderer — no
+  ASCII/JSON path yet, so Obsidian's existing Mermaid-SVG pipeline is how sequence
+  diagrams render at all today.
 - `render.ts` — `renderAscii(graph, lay, {selected?})`, `toJSON`, `render`. Down-horiz-
   down edge routing; labels at `labelPos`; selected node → heavy box. `renderGrid`
   reports each node's `cell` rect and each **labeled** edge's label `cell` (keyed
   `src\x00dst`), both mapped through the blank-row `compress`. The connector line is
   not a cell (compressed away) — the label is the addressable edge token.
 - `cli.ts` — `mid render [--json] [--format md|mmd] [--select NAME] <file|->` and
-  `mid convert [--format md|mmd] <file|->`. Format is always content-sniffed
+  `mid convert [--format md|mmd|seq] <file|->`. Format is always content-sniffed
   (`sniffFormat`) unless `--format` overrides it — no extension-based default.
   `convert` emits the *other* format from whatever was detected (md→mmd via
-  `toMermaid`, mmd→md via `toMarkdown`).
+  `toMermaid`, mmd→md via `toMarkdown`, seq→mmd via `toMermaidSequence`). `render`
+  on `seq` input exits 1 with a message pointing at `convert` — no ASCII layout
+  exists for sequence diagrams yet.
 
 **The `toJSON` contract (the one thing nvim consumes; Obsidian imports the core
 directly).** Per node `{name, spans, cell}`, per edge `{src, dst, label, spans, cell}`
@@ -80,7 +112,7 @@ directly).** Per node `{name, spans, cell}`, per edge `{src, dst, label, spans, 
 ```bash
 bun run src/cli.ts render examples/tree.md   # ASCII (auto-detect format)
 bun run src/cli.ts convert examples/tree.md  # → Mermaid (or mmd → mid bullets)
-bun test                                      # 45 tests
+bun test                                      # 64 tests
 bun run build                                 # → dist/mid standalone binary
 bun run check                                 # biome (lint+format) + tsc + tests — the CI gate
 ```
@@ -115,7 +147,8 @@ keep `package.json`/`manifest.json`/`versions.json` in lockstep with the tag. CI
 ## Examples (`examples/`)
 
 `tree.md` (canonical: nesting + label + node reuse), `flow.md` (DAG with a join),
-`notes.md` (plugin scratch buffer), `test.mmd` / `pipeline.mmd` (Mermaid).
+`notes.md` (plugin scratch buffer), `test.mmd` / `pipeline.mmd` (Mermaid),
+`sequence.md` (sequence diagram: labeled actor, two `>` messages).
 
 ## Neovim plugin (`plugins/nvim/`)
 
@@ -217,6 +250,12 @@ plugins.
   `find_blocks` is a regex scan (treesitter would handle `~~~`/indented fences).
 - **Converter surfaces** — SVG serializer; export commands (`mid convert` — md↔mmd — is done).
 - **Editing reach in Obsidian** — inline-rename a node (rewrite `spans`), create-child.
+- **Sequence diagram ASCII renderer + nvim JSON contract** — actors-as-fixed-columns,
+  time-flowing-down-in-declared-order; nothing to reuse from `dagre`/`render.ts`
+  (deliberately deferred so v1 could ship as parser + `toMermaidSequence` only).
+- **More sequence arrows** — `>>` (return), `~>` (async), `x>` (lost); decide then
+  whether `>>` pairs with a prior `>` as a lifeline activation bar or stays an
+  independent message type (v1 punted on this along with the extra arrows).
 
 ## Maintaining this file
 

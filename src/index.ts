@@ -20,20 +20,37 @@ export {
 	renderGrid,
 	toJSON,
 } from "./render.ts";
+export {
+	type Actor,
+	type Message,
+	parseSequence,
+	SeqDiagram,
+} from "./sequence.ts";
 
 import { parseMarkdown } from "./markdown.ts";
 import { parseMermaid } from "./mermaid.ts";
 import type { Graph } from "./model.ts";
 
-export type Format = "md" | "mmd";
+export type Format = "md" | "mmd" | "seq";
 
-/** Sniff the format from text: Mermaid starts with `graph`/`flowchart`. */
+/** Sniff the format from text: Mermaid starts with `graph`/`flowchart`; a mid
+ *  bullet list always has at least one `-`/`*`/`+` bullet line; a sequence
+ *  block never does. */
 export function sniffFormat(text: string): Format {
 	const first = text.trim().split("\n")[0]?.trim() ?? "";
-	return /^(graph|flowchart)\b/.test(first) ? "mmd" : "md";
+	if (/^(graph|flowchart)\b/.test(first)) return "mmd";
+	const hasBullet = text.split("\n").some((l) => /^\s*[-*+]\s/.test(l));
+	return hasBullet ? "md" : "seq";
 }
 
+/** Parse a flowchart format (markdown or mermaid) into a `Graph`. For `seq`,
+ *  use `parseSequence` directly — a sequence diagram isn't a `Graph` (its
+ *  messages are ordered events, not deduped edges). */
 export function parse(text: string, format?: Format): Graph {
 	const fmt = format ?? sniffFormat(text);
+	if (fmt === "seq")
+		throw new Error(
+			"parse(): sequence diagrams use parseSequence(), not parse()",
+		);
 	return fmt === "mmd" ? parseMermaid(text) : parseMarkdown(text);
 }

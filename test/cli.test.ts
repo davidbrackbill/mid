@@ -111,4 +111,23 @@ describe("cli convert", () => {
 		expect(code).toBe(0);
 		expect(out.trim().startsWith("-")).toBe(true);
 	});
+
+	test("sequence → mermaid sequenceDiagram, format sniffed", async () => {
+		const { out, code } = await run(
+			["convert", "-"],
+			"Client\nServer\n\nClient > Server: hi\n",
+		);
+		expect(code).toBe(0);
+		expect(out).toContain("sequenceDiagram");
+		expect(out).toContain("->>");
+		expect(out).toContain(": hi");
+	});
+});
+
+describe("cli render with sequence input", () => {
+	test("render is not yet supported for seq, exits non-zero with a message", async () => {
+		const { err, code } = await run(["render", "-"], "Client > Server: hi\n");
+		expect(code).toBe(1);
+		expect(err).toContain("mid convert");
+	});
 });

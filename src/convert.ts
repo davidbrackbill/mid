@@ -10,6 +10,7 @@
  * client can map name → id (via the returned map) to find the rendered SVG node.
  */
 import type { Edge, Graph } from "./model.ts";
+import type { SeqDiagram } from "./sequence.ts";
 
 export interface Mermaid {
 	/** the `graph TD …` source */
@@ -41,6 +42,38 @@ export function toMermaid(graph: Graph): Mermaid {
 		lines.push(
 			e.label ? `  ${s} -->|${label(e.label)}| ${d}` : `  ${s} --> ${d}`,
 		);
+	}
+	return { text: lines.join("\n"), ids };
+}
+
+/**
+ * Render a parsed sequence diagram out to Mermaid `sequenceDiagram` syntax, the
+ * same way `toMermaid` does for flowcharts — the Obsidian plugin hands this
+ * straight to Mermaid's built-in renderer, so `mid` never needs its own
+ * sequence-diagram layout/drawing code.
+ *
+ * Actor ids get the same stable-synthetic-id treatment as flowchart nodes
+ * (`n0`, `n1`, …), since a bare actor declaration's id is the whole line and
+ * may contain spaces, which Mermaid participant ids can't.
+ */
+export function toMermaidSequence(diagram: SeqDiagram): Mermaid {
+	const ids = new Map<string, string>();
+	let i = 0;
+	for (const id of diagram.actors.keys()) ids.set(id, `n${i++}`);
+
+	const lines = ["sequenceDiagram"];
+	for (const [actorId, mid] of ids) {
+		const actor = diagram.actors.get(actorId)!;
+		lines.push(
+			actor.label
+				? `  participant ${mid} as ${label(actor.label)}`
+				: `  participant ${mid}`,
+		);
+	}
+	for (const m of diagram.messages) {
+		const s = ids.get(m.from)!;
+		const d = ids.get(m.to)!;
+		lines.push(`  ${s}->>${d}: ${m.text ? label(m.text) : ""}`);
 	}
 	return { text: lines.join("\n"), ids };
 }
