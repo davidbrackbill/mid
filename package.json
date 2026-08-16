@@ -1,6 +1,6 @@
 {
 	"name": "@davidbrackbill/mid",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Render Markdown bullet lists (and Mermaid) as graphs — TypeScript core + CLI.",
 	"type": "module",
 	"module": "src/index.ts",
