@@ -1,0 +1,5 @@
+- request
+  - [cache hit](respond)
+  - [cache miss](fetch)
+    - [ok](respond)
+    - [fail](error)

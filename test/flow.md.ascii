@@ -1,18 +1,4 @@
-# mid
 
-Write Mermaid graphs as Markdown bullets,
-
-```markdown
-- request
-  - [cache hit](respond)
-  - [cache miss](fetch)
-    - [ok](respond)
-    - [fail](error)
-```
-
-get ASCII output:
-
-```
          ╭─────────╮
          │ request │
          ╰─────────╯
@@ -30,23 +16,3 @@ get ASCII output:
   ╭─────────╮      ╭───────╮
   │ respond │      │ error │
   ╰─────────╯      ╰───────╯
-```
-
-## CLI
-
-```bash
-pnpm install
-bun src/cli.ts diagram.md          # print an ASCII graph
-bun src/cli.ts -m diagram.md       # convert Mid -> Mermaid
-cat diagram.md | bun src/cli.ts    # reads stdin
-```
-
-## Library
-
-```ts
-import { parse, renderAscii, renderMermaid } from "./src/index.ts";
-
-const graph = parse(text);
-renderAscii(graph);
-renderMermaid(graph);
-```

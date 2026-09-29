@@ -1,0 +1,9 @@
+graph TD
+  n0[request]
+  n1[respond]
+  n2[fetch]
+  n3[error]
+  n0 -->|cache hit| n1
+  n0 -->|cache miss| n2
+  n2 -->|ok| n1
+  n2 -->|fail| n3
