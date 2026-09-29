@@ -1,0 +1,24 @@
+graph TD
+  n0[Start Pipeline]
+  n1[Validate Input]
+  n2[Parse Data]
+  n3[Error Handler]
+  n4[Transform]
+  n5[Enrich Data]
+  n6[Save to DB]
+  n7[Send Notification]
+  n8[Retry Logic]
+  n9[Alert Team]
+  n10[Complete]
+  n0 --> n1
+  n1 -->|valid| n2
+  n1 -->|invalid| n3
+  n2 --> n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
+  n3 --> n8
+  n8 -->|success| n2
+  n8 -->|failed| n9
+  n7 --> n10
+  n9 --> n10

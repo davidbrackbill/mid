@@ -10,11 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - name: Lint + typecheck + tests
-        run: bun run check
+        run: pnpm run check
       - name: Build standalone binary
-        run: bun run build
+        run: pnpm run build

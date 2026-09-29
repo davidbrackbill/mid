@@ -1,0 +1,13 @@
+graph TD
+  n0[Start]
+  n1[Parse Input]
+  n2[Process]
+  n3[Error Handler]
+  n4[Transform]
+  n5[Output]
+  n0 --> n1
+  n1 -->|valid| n2
+  n1 -->|invalid| n3
+  n2 --> n4
+  n4 --> n5
+  n3 --> n5

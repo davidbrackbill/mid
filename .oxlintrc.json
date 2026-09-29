@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["./lint/no-comments.js"],
+  "rules": {
+    "mid/no-comments": "error"
+  }
+}
