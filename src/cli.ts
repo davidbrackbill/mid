@@ -4,14 +4,15 @@ import { ParseError, parse, renderAscii, renderMermaid } from "./index.ts";
 
 const USAGE = `Usage: mid [-m] [file]
 
-Draws a mid bullet list or Mermaid flowchart as ASCII. The input syntax is
-detected from the content.
+Draws a flowchart (mid bullets or Mermaid) or a sequence diagram (a Markdown
+table or Mermaid sequenceDiagram) as ASCII. The syntax is detected from the
+content.
 
 Arguments:
   file           Input file; reads stdin if omitted or "-"
 
 Options:
-  -m, --mermaid  Print Mermaid (graph TD) source instead of ASCII
+  -m, --mermaid  Print Mermaid source instead of ASCII
   -h, --help     Show this help
 `;
 
