@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light dark;
+  --page-bg: #f6f8fa;
+  --page-fg: #1f2328;
+  --page-muted: #59636e;
+  --page-border: #d1d9e0;
+  --page-surface: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #010409;
+    --page-fg: #e6edf3;
+    --page-muted: #9198a1;
+    --page-border: #3d444d;
+    --page-surface: #0d1117;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-fg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+#app {
+  height: 100dvh;
+}
+
+#app .mid {
+  gap: 0;
+}
+
+#app .mid-pane {
+  border-width: 0;
+  border-radius: 0;
+}
+
+#app .mid-source {
+  border-right-width: 1px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.page-github {
+  position: fixed;
+  z-index: 2;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--page-border);
+  border-radius: 6px;
+  background: var(--page-surface);
+  color: var(--page-muted);
+}
+
+.page-github:hover,
+.page-github:focus-visible {
+  color: var(--page-fg);
+  border-color: var(--page-muted);
+}

@@ -28,17 +28,25 @@
   "scripts": {
     "test": "bun test",
     "build": "bun build src/cli.ts --compile --outfile dist/mid",
-    "typecheck": "tsc --noEmit",
+    "web": "bun web/index.html",
+    "web:build": "bun build web/index.html --outdir dist-web --minify --splitting",
+    "typecheck": "tsc --noEmit && tsc -p web --noEmit",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && oxfmt",
-    "check": "oxfmt --check && oxlint && tsc --noEmit && bun test"
+    "check": "oxfmt --check && oxlint && pnpm run typecheck && bun test"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4"
   },
   "devDependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@replit/codemirror-vim": "^6.4.0",
     "@types/bun": "latest",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",

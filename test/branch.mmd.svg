@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="mid-svg" width="324" height="612" viewBox="0 0 324 612" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+<defs><marker id="mid-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<path class="mid-edge" d="M153 72L153 108L153 144" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<path class="mid-edge" d="M120.9 198L67.5 243L67.5 288" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<path class="mid-edge" d="M185.1 198L238.5 243L238.5 315L238.5 378L238.5 414" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<path class="mid-edge" d="M67.5 342L67.5 378L67.5 414" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<path class="mid-edge" d="M67.5 468L67.5 504L116.4 540" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<path class="mid-edge" d="M238.5 468L238.5 504L189.6 540" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<g class="mid-label"><rect class="mid-label-bg" x="41" y="234" width="53" height="18" fill="#fff"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="67.5" y="243">valid</tspan></text></g>
+<g class="mid-label"><rect class="mid-label-bg" x="203" y="306" width="71" height="18" fill="#fff"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="238.5" y="315">invalid</tspan></text></g>
+<g class="mid-node" data-node="Start"><rect class="mid-box" x="112.5" y="18" width="81" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="153" y="45">Start</tspan></text></g>
+<g class="mid-node" data-node="Parse Input"><rect class="mid-box" x="85.5" y="144" width="135" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="153" y="171">Parse Input</tspan></text></g>
+<g class="mid-node" data-node="Process"><rect class="mid-box" x="18" y="288" width="99" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="67.5" y="315">Process</tspan></text></g>
+<g class="mid-node" data-node="Error Handler"><rect class="mid-box" x="162" y="414" width="153" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="238.5" y="441">Error Handler</tspan></text></g>
+<g class="mid-node" data-node="Transform"><rect class="mid-box" x="9" y="414" width="117" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="67.5" y="441">Transform</tspan></text></g>
+<g class="mid-node" data-node="Output"><rect class="mid-box" x="108" y="540" width="90" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="153" y="567">Output</tspan></text></g>
+</svg>

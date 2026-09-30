@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="mid-svg" width="513" height="180" viewBox="0 0 513 180" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+<defs><marker id="mid-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<line class="mid-lifeline" x1="54" y1="54" x2="54" y2="180" stroke="currentColor" stroke-dasharray="4 4" opacity="0.5"/>
+<line class="mid-lifeline" x1="315" y1="54" x2="315" y2="180" stroke="currentColor" stroke-dasharray="4 4" opacity="0.5"/>
+<line class="mid-lifeline" x1="450" y1="54" x2="450" y2="180" stroke="currentColor" stroke-dasharray="4 4" opacity="0.5"/>
+<g class="mid-node" data-node="Client"><rect class="mid-box" x="9" y="2" width="90" height="50" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="54" y="27">Client</tspan></text></g>
+<g class="mid-node" data-node="Server"><rect class="mid-box" x="270" y="2" width="90" height="50" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="315" y="27">Server</tspan></text></g>
+<g class="mid-node" data-node="Database"><rect class="mid-box" x="396" y="2" width="108" height="50" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="450" y="27">Database</tspan></text></g>
+<g class="mid-message" data-message="0"><path d="M54 99H314" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="184.5" y="81">Goes to server by default</tspan></text></g>
+<g class="mid-message" data-message="1"><path d="M54 153H449" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="252" y="135">Bypasses server access</tspan></text></g>
+</svg>

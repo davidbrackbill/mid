@@ -1,4 +1,4 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["test/*.md", "test/*.mmd", "test/*.ascii", "test/*.mermaid"]
+  "ignorePatterns": ["test/*.md", "test/*.mmd", "test/*.ascii", "test/*.mermaid", "test/*.svg"]
 }
