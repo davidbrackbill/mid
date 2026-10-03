@@ -1,37 +1,12 @@
 import { readOutline, splitNode, writeOutline } from "../src/mid.ts";
+import type { Action as EditAction, Cursor, Focus, Key, Rules } from "./edit.ts";
 
 export interface Item {
   level: number;
   text: string;
 }
 
-export interface Cursor {
-  i: number;
-  start: number;
-  end: number;
-}
-
-export interface Focus {
-  i: number;
-  start: number;
-  end?: number;
-}
-
-export type Key =
-  | "Enter"
-  | "Tab"
-  | "Shift+Tab"
-  | "Backspace"
-  | "Delete"
-  | "ArrowUp"
-  | "ArrowDown"
-  | "ArrowLeft"
-  | "ArrowRight";
-
-export type Action =
-  | { kind: "edit"; items: Item[]; focus: Focus }
-  | { kind: "move"; focus: Focus }
-  | { kind: "ignore" };
+export type Action = EditAction<Item[]>;
 
 export function readItems(text: string): Item[] | null {
   return readOutline(text)?.map(({ level, text }) => ({ level, text })) ?? null;
@@ -62,11 +37,15 @@ function shifted(items: Item[], i: number, by: number): Item[] {
 
 const edit = (items: Item[], focus: Focus): Action => ({
   kind: "edit",
-  items: normalize(items),
+  model: normalize(items),
   focus,
 });
 
-export function keyAction(items: Item[], key: Key, { i, start, end }: Cursor): Action | undefined {
+export function keyAction(
+  items: Item[],
+  key: Key,
+  { at: i, start, end }: Cursor,
+): Action | undefined {
   const item = items[i]!;
   const collapsed = start === end;
   const last = items.length - 1;
@@ -74,12 +53,12 @@ export function keyAction(items: Item[], key: Key, { i, start, end }: Cursor): A
 
   switch (key) {
     case "Enter": {
-      if (!item.text && item.level > 0) return edit(shifted(items, i, -1), { i, start: 0 });
+      if (!item.text && item.level > 0) return edit(shifted(items, i, -1), { at: i, start: 0 });
       if (!item.text) return { kind: "ignore" };
       const next = copy();
       if (collapsed && start === 0) {
         next.splice(i, 0, { level: item.level, text: "" });
-        return edit(next, { i: i + 1, start: 0 });
+        return edit(next, { at: i + 1, start: 0 });
       }
       const hasChildren = subtreeEnd(items, i) > i + 1;
       next[i] = { ...item, text: item.text.slice(0, start) };
@@ -87,56 +66,56 @@ export function keyAction(items: Item[], key: Key, { i, start, end }: Cursor): A
         level: item.level + (hasChildren ? 1 : 0),
         text: item.text.slice(end),
       });
-      return edit(next, { i: i + 1, start: 0 });
+      return edit(next, { at: i + 1, start: 0 });
     }
     case "Tab":
       if (i === 0 || item.level > items[i - 1]!.level) return { kind: "ignore" };
-      return edit(shifted(items, i, 1), { i, start, end });
+      return edit(shifted(items, i, 1), { at: i, start, end });
     case "Shift+Tab":
       if (item.level === 0) return { kind: "ignore" };
-      return edit(shifted(items, i, -1), { i, start, end });
+      return edit(shifted(items, i, -1), { at: i, start, end });
     case "Backspace": {
       if (!collapsed || start !== 0) return undefined;
-      if (item.level > 0) return edit(shifted(items, i, -1), { i, start: 0 });
+      if (item.level > 0) return edit(shifted(items, i, -1), { at: i, start: 0 });
       if (i === 0) return undefined;
       const next = copy();
       const join = next[i - 1]!.text.length;
       next[i - 1]!.text += item.text;
       next.splice(i, 1);
-      return edit(next, { i: i - 1, start: join });
+      return edit(next, { at: i - 1, start: join });
     }
     case "Delete": {
       if (!collapsed || start !== item.text.length || i === last) return undefined;
       const next = copy();
       next[i]!.text += items[i + 1]!.text;
       next.splice(i + 1, 1);
-      return edit(next, { i, start });
+      return edit(next, { at: i, start });
     }
     case "ArrowUp":
       if (i === 0) return undefined;
       return {
         kind: "move",
-        focus: { i: i - 1, start: Math.min(start, items[i - 1]!.text.length) },
+        focus: { at: i - 1, start: Math.min(start, items[i - 1]!.text.length) },
       };
     case "ArrowDown":
       if (i === last) return undefined;
       return {
         kind: "move",
-        focus: { i: i + 1, start: Math.min(start, items[i + 1]!.text.length) },
+        focus: { at: i + 1, start: Math.min(start, items[i + 1]!.text.length) },
       };
     case "ArrowLeft":
       if (!collapsed || start !== 0 || i === 0) return undefined;
-      return { kind: "move", focus: { i: i - 1, start: items[i - 1]!.text.length } };
+      return { kind: "move", focus: { at: i - 1, start: items[i - 1]!.text.length } };
     case "ArrowRight":
       if (!collapsed || start !== item.text.length || i === last) return undefined;
-      return { kind: "move", focus: { i: i + 1, start: 0 } };
+      return { kind: "move", focus: { at: i + 1, start: 0 } };
   }
 }
 
 export function pasteAction(
   items: Item[],
   pasted: string,
-  { i, start, end }: Cursor,
+  { at: i, start, end }: Cursor,
 ): Action | undefined {
   const lines = pasted
     .replace(/\r\n?/g, "\n")
@@ -153,10 +132,10 @@ export function pasteAction(
   const next = items.map((x) => ({ ...x }));
   next[i]!.text = item.text.slice(0, start) + parsed[0]!.text;
   next.splice(i + 1, 0, ...added);
-  return edit(next, { i: i + added.length, start: caret });
+  return edit(next, { at: i + added.length, start: caret });
 }
 
-function completion(items: Item[], { i, start, end }: Cursor): string | undefined {
+function completion(items: Item[], { at: i, start, end }: Cursor): string | undefined {
   const text = items[i]!.text;
   if (start !== end || end !== text.length || text.length < 2) return undefined;
   if (text.includes(": ") || text.startsWith('"')) return undefined;
@@ -169,14 +148,30 @@ function completion(items: Item[], { i, start, end }: Cursor): string | undefine
 }
 
 export function suggestion(items: Item[], cursor: Cursor): string | undefined {
-  return completion(items, cursor)?.slice(items[cursor.i]!.text.length);
+  return completion(items, cursor)?.slice(items[cursor.at]!.text.length);
 }
 
 export function accept(items: Item[], cursor: Cursor): Action | undefined {
   const name = completion(items, cursor);
   if (!name) return undefined;
-  return edit(items.with(cursor.i, { ...items[cursor.i]!, text: name }), {
-    i: cursor.i,
+  return edit(items.with(cursor.at, { ...items[cursor.at]!, text: name }), {
+    at: cursor.at,
     start: name.length,
   });
 }
+
+const EMPTY: Item[] = [{ level: 0, text: "" }];
+
+export const outlineRules: Rules<Item[]> = {
+  read: (text) => {
+    const items = readItems(text);
+    return items && (items.length ? items : EMPTY);
+  },
+  write: writeItems,
+  texts: (items) => items.map((item) => item.text),
+  setText: (items, at, text) => items.with(at, { ...items[at]!, text }),
+  key: keyAction,
+  suggestion,
+  accept,
+  paste: pasteAction,
+};

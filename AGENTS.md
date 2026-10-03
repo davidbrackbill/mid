@@ -12,10 +12,11 @@ doesn't.
   `node: label`. The parser, `renderMid`, and the editors all use it.
 - `src/cli.ts`: the only file in `src/` allowed to use `Bun.*`. The web
   editor imports `src/` directly, so the core must stay runtime-agnostic.
-- `web/`: the editor. `editor.ts` mounts it and sends every change through
-  `commit()`. `outline.ts`, `grid.ts`, and `document.ts` hold the editing
-  rules with no DOM (`test/edit.test.ts`); `bullets.ts`, `table.ts`, and
-  `source.ts` render the three editors; `view.ts` is the output pane.
+- `web/editor.ts`: all of the editor's DOM code. Every change goes through
+  `commit()`; the outline and table share one field editor driven by a
+  `Rules` object (`edit.ts`). `outline.ts`, `grid.ts`, and `document.ts` hold
+  those rules with no DOM, tested in `test/edit.test.ts`. Table cells are
+  numbered in reading order, header first.
 - `scripts/dev.ts`: `bun run web`. Starting it again replaces the running one.
 - `test/`: each fixture input has expected `.ascii`, `.svg`, `.mermaid`
   outputs next to it.

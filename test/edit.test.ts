@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { editorFor, isBlank, modeOf, opening } from "../web/document.ts";
+import type { Cursor, Key } from "../web/edit.ts";
 import {
   accept as gridAccept,
   addColumn,
@@ -16,7 +17,6 @@ import {
   accept,
   type Action,
   type Item,
-  type Key,
   keyAction,
   pasteAction,
   readItems,
@@ -26,17 +26,17 @@ import {
 
 describe("outline", () => {
   const items = (text: string) => readItems(text)!;
-  const at = (i: number, start: number, end = start) => ({ i, start, end });
-  const run = (text: string, key: Key, cursor: { i: number; start: number; end: number }) => {
+  const at = (i: number, start: number, end = start): Cursor => ({ at: i, start, end });
+  const run = (text: string, key: Key, cursor: Cursor) => {
     const action = keyAction(items(text), key, cursor);
     if (action?.kind !== "edit") return action;
-    return { text: writeItems(action.items).text, focus: action.focus };
+    return { text: writeItems(action.model).text, focus: action.focus };
   };
 
   test("Enter splits a bullet at the cursor", () => {
     expect(run("- headtail\n", "Enter", at(0, 4))).toEqual({
       text: "- head\n- tail\n",
-      focus: { i: 1, start: 0 },
+      focus: { at: 1, start: 0 },
     });
   });
 
@@ -51,7 +51,7 @@ describe("outline", () => {
   test("Enter at the start inserts a bullet above and keeps the cursor on the text", () => {
     expect(run("- alpha\n", "Enter", at(0, 0))).toEqual({
       text: "-\n- alpha\n",
-      focus: { i: 1, start: 0 },
+      focus: { at: 1, start: 0 },
     });
   });
 
@@ -79,7 +79,7 @@ describe("outline", () => {
     expect(run("- a\n  - b\n", "Backspace", at(1, 0))).toMatchObject({ text: "- a\n- b\n" });
     expect(run("- a\n- b\n", "Backspace", at(1, 0))).toEqual({
       text: "- ab\n",
-      focus: { i: 0, start: 1 },
+      focus: { at: 0, start: 1 },
     });
   });
 
@@ -99,12 +99,11 @@ describe("outline", () => {
   });
 
   test("arrow keys move between bullets at the edges", () => {
-    const move = (key: Key, cursor: { i: number; start: number; end: number }) =>
-      keyAction(items("- one\n- tw\n"), key, cursor);
-    expect(move("ArrowDown", at(0, 3))).toEqual({ kind: "move", focus: { i: 1, start: 2 } });
-    expect(move("ArrowUp", at(1, 1))).toEqual({ kind: "move", focus: { i: 0, start: 1 } });
-    expect(move("ArrowLeft", at(1, 0))).toEqual({ kind: "move", focus: { i: 0, start: 3 } });
-    expect(move("ArrowRight", at(0, 3))).toEqual({ kind: "move", focus: { i: 1, start: 0 } });
+    const move = (key: Key, cursor: Cursor) => keyAction(items("- one\n- tw\n"), key, cursor);
+    expect(move("ArrowDown", at(0, 3))).toEqual({ kind: "move", focus: { at: 1, start: 2 } });
+    expect(move("ArrowUp", at(1, 1))).toEqual({ kind: "move", focus: { at: 0, start: 1 } });
+    expect(move("ArrowLeft", at(1, 0))).toEqual({ kind: "move", focus: { at: 0, start: 3 } });
+    expect(move("ArrowRight", at(0, 3))).toEqual({ kind: "move", focus: { at: 1, start: 0 } });
     expect(move("ArrowLeft", at(1, 1))).toBeUndefined();
     expect(move("ArrowUp", at(0, 0))).toBeUndefined();
   });
@@ -114,8 +113,8 @@ describe("outline", () => {
       Action,
       { kind: "edit" }
     >;
-    expect(writeItems(action.items).text).toBe("- a\n  - bx\n    - y\n  - zc\n");
-    expect(action.focus).toEqual({ i: 3, start: 1 });
+    expect(writeItems(action.model).text).toBe("- a\n  - bx\n    - y\n  - zc\n");
+    expect(action.focus).toEqual({ at: 3, start: 1 });
   });
 
   test("pasting plain lines makes sibling bullets, and one line is left to the browser", () => {
@@ -123,7 +122,7 @@ describe("outline", () => {
       Action,
       { kind: "edit" }
     >;
-    expect(writeItems(action.items).text).toBe("- ax\n- y\n");
+    expect(writeItems(action.model).text).toBe("- ax\n- y\n");
     expect(pasteAction(items("- a\n"), "x\n", at(0, 1))).toBeUndefined();
   });
 
@@ -138,20 +137,20 @@ describe("outline", () => {
       "Backspace",
       at(1, 0),
     ) as Extract<Action, { kind: "edit" }>;
-    expect(merged.items.map((x) => x.level)).toEqual([0, 1, 2]);
+    expect(merged.model.map((x) => x.level)).toEqual([0, 1, 2]);
   });
 });
 
 describe("grid", () => {
   const table = readTable("| A | B |\n| - | - |\n| x | ->> |\n")!;
-  const at = (r: number, c: number, start = 0) => ({ r, c, start, end: start });
+  const at = (r: number, c: number, start = 0): Cursor => ({ at: r * 2 + c, start, end: start });
   const text = (action: ReturnType<typeof gridKey>) =>
-    action?.kind === "edit" ? writeGrid(action.table).text : action;
+    action?.kind === "edit" ? writeGrid(action.model).text : action;
 
   test("Enter moves down a column and adds a row from the last one", () => {
     expect(gridKey(table, "Enter", at(0, 1))).toEqual({
       kind: "move",
-      focus: { r: 1, c: 1, start: 3 },
+      focus: { at: 3, start: 3 },
     });
     expect(text(gridKey(table, "Enter", at(1, 0)))).toBe(
       "| A   | B   |\n| --- | --- |\n| x   | ->> |\n|     |     |\n",
@@ -162,19 +161,19 @@ describe("grid", () => {
   test("Tab walks the cells in reading order and adds a row past the end", () => {
     expect(gridKey(table, "Tab", at(0, 1))).toEqual({
       kind: "move",
-      focus: { r: 1, c: 0, start: 0 },
+      focus: { at: 2, start: 0 },
     });
-    expect(gridKey(table, "Tab", at(1, 1))).toMatchObject({ focus: { r: 2, c: 0, start: 0 } });
+    expect(gridKey(table, "Tab", at(1, 1))).toMatchObject({ focus: { at: 4, start: 0 } });
   });
 
   test("Left and Right cross into neighbouring cells only at a cell's edge", () => {
     expect(gridKey(table, "ArrowLeft", at(1, 0))).toEqual({
       kind: "move",
-      focus: { r: 0, c: 1, start: 1 },
+      focus: { at: 1, start: 1 },
     });
     expect(gridKey(table, "ArrowRight", at(0, 1, 1))).toEqual({
       kind: "move",
-      focus: { r: 1, c: 0, start: 0 },
+      focus: { at: 2, start: 0 },
     });
     expect(gridKey(table, "ArrowRight", at(1, 1, 1))).toBeUndefined();
     expect(gridKey(table, "ArrowRight", at(1, 1, 3))).toBeUndefined();
@@ -184,7 +183,7 @@ describe("grid", () => {
   test("Shift+Tab moves to the previous cell", () => {
     expect(gridKey(table, "Shift+Tab", at(1, 0))).toEqual({
       kind: "move",
-      focus: { r: 0, c: 1, start: 0 },
+      focus: { at: 1, start: 0 },
     });
     expect(gridKey(table, "Shift+Tab", at(0, 0))).toEqual({ kind: "ignore" });
   });
@@ -192,7 +191,7 @@ describe("grid", () => {
   test("Backspace at the start of an empty row deletes it", () => {
     const withBlank = readTable("| A | B |\n| - | - |\n| x | ->> |\n|  |  |\n")!;
     expect(gridKey(withBlank, "Backspace", at(2, 1))).toMatchObject({
-      focus: { r: 1, c: 1, start: 0 },
+      focus: { at: 3, start: 0 },
     });
     expect(text(gridKey(withBlank, "Backspace", at(2, 1)))).toBe(
       "| A   | B   |\n| --- | --- |\n| x   | ->> |\n",
@@ -207,11 +206,11 @@ describe("grid", () => {
 
   test("participants and messages can be added and deleted", () => {
     const added = addColumn(table) as Extract<ReturnType<typeof addColumn>, { kind: "edit" }>;
-    expect(added.table.head).toEqual(["A", "B", "Participant 3"]);
-    expect(added.focus).toEqual({ r: 0, c: 2, start: 0, end: 13 });
-    expect(addRow(table)).toMatchObject({ focus: { r: 2, c: 0, start: 0 } });
-    expect(deleteColumn(table, 0)).toMatchObject({ table: { head: ["B"], rows: [["->>"]] } });
-    expect(deleteRow(table, 1)).toMatchObject({ table: { rows: [] } });
+    expect(added.model.head).toEqual(["A", "B", "Participant 3"]);
+    expect(added.focus).toEqual({ at: 2, start: 0, end: 13 });
+    expect(addRow(table)).toMatchObject({ focus: { at: 4, start: 0 } });
+    expect(deleteColumn(table, 0)).toMatchObject({ model: { head: ["B"], rows: [["->>"]] } });
+    expect(deleteRow(table, 1)).toMatchObject({ model: { rows: [] } });
   });
 
   test("setCell leaves the original table alone", () => {
@@ -257,7 +256,7 @@ describe("autocomplete", () => {
   const items = (text: string) => readItems(text)!;
   const end = (list: Item[], i: number) => {
     const at = list[i]!.text.length;
-    return { i, start: at, end: at };
+    return { at: i, start: at, end: at };
   };
   const ghost = (text: string, i: number) => suggestion(items(text), end(items(text), i));
 
@@ -280,34 +279,34 @@ describe("autocomplete", () => {
     expect(ghost("- fetch\n- fetch user\n- fetch\n", 2)).toBeUndefined();
     expect(ghost("- respond\n- x: re\n", 1)).toBeUndefined();
     const list = items("- fetch\n- fet\n");
-    expect(suggestion(list, { i: 1, start: 1, end: 1 })).toBeUndefined();
+    expect(suggestion(list, { at: 1, start: 1, end: 1 })).toBeUndefined();
   });
 
   test("accepting takes the existing node's casing and puts the cursor at the end", () => {
     const list = items("- Fetch\n- fe\n");
     expect(accept(list, end(list, 1))).toEqual({
       kind: "edit",
-      items: [
+      model: [
         { level: 0, text: "Fetch" },
         { level: 0, text: "Fetch" },
       ],
-      focus: { i: 1, start: 5 },
+      focus: { at: 1, start: 5 },
     });
   });
 
   test("a dash in a table cell completes to an arrow", () => {
     const t = readTable("| A | B |\n| - | - |\n| hi | - |\n| -- | ok |\n")!;
-    expect(gridSuggestion(t, { r: 1, c: 1, start: 1, end: 1 })).toBe(">>");
-    expect(gridSuggestion(t, { r: 2, c: 0, start: 2, end: 2 })).toBe(">>");
-    expect(gridSuggestion(t, { r: 1, c: 0, start: 2, end: 2 })).toBeUndefined();
-    expect(gridAccept(t, { r: 2, c: 0, start: 2, end: 2 })).toMatchObject({
-      table: {
+    expect(gridSuggestion(t, { at: 3, start: 1, end: 1 })).toBe(">>");
+    expect(gridSuggestion(t, { at: 4, start: 2, end: 2 })).toBe(">>");
+    expect(gridSuggestion(t, { at: 2, start: 2, end: 2 })).toBeUndefined();
+    expect(gridAccept(t, { at: 4, start: 2, end: 2 })).toMatchObject({
+      model: {
         rows: [
           ["hi", "-"],
           ["-->>", "ok"],
         ],
       },
-      focus: { r: 2, c: 0, start: 4 },
+      focus: { at: 4, start: 4 },
     });
   });
 });
