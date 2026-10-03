@@ -4,7 +4,7 @@ const SCALE = 2;
 export async function svgToPng(svg: string, colors: { fg: string; bg: string }): Promise<Blob> {
   const themed = svg
     .replace("<svg ", `<svg style="color:${colors.fg}" `)
-    .replace("<defs>", `<defs><style>.mid-box,.mid-label-bg{fill:${colors.bg}}</style>`);
+    .replace("<defs>", `<defs><style>.mid-svg-box,.mid-svg-label-bg{fill:${colors.bg}}</style>`);
   const url = URL.createObjectURL(new Blob([themed], { type: "image/svg+xml" }));
   const img = new Image();
   try {

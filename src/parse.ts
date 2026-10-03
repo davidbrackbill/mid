@@ -1,3 +1,5 @@
+import { isSeparator, readOutline, readTable, splitNode, trimmedSpan } from "./mid.ts";
+
 export class ParseError extends Error {}
 
 export interface Span {
@@ -17,10 +19,27 @@ interface Edge {
   span?: Span;
 }
 
+export const ARROWS = [
+  "<<-->>",
+  "<<->>",
+  "-->>",
+  "->>",
+  "--x",
+  "-x",
+  "--)",
+  "-)",
+  "-->",
+  "->",
+] as const;
+
+export type Arrow = (typeof ARROWS)[number];
+
 export interface Message {
   from: string;
   to: string;
   text: string;
+  arrow: Arrow;
+  activation?: "+" | "-";
   span?: Span;
 }
 
@@ -36,6 +55,8 @@ export class Graph {
   readonly nodes = new Set<string>();
   readonly edges: Edge[] = [];
   readonly messages: Message[] = [];
+  readonly actors = new Set<string>();
+  autonumber = false;
   readonly spans = new Map<string, Span[]>();
   readonly warnings: Warning[] = [];
 
@@ -50,62 +71,40 @@ export class Graph {
   }
 }
 
-export function parse(text: string): Graph {
+export function detect(text: string): { format: Format; kind: Kind } {
   const lines = text.split("\n").map((l) => l.trim());
   const first = lines.find((l) => l && !l.startsWith("%")) ?? "";
-  if (/^sequenceDiagram\b/.test(first)) return parseMermaidSequence(text);
-  if (/^(graph|flowchart)\b/.test(first)) return parseMermaid(text);
-  if (lines.some((l) => l.startsWith("|"))) return parseTable(text);
-  return parseMarkdown(text);
+  if (/^sequenceDiagram\b/.test(first)) return { format: "mermaid", kind: "sequence" };
+  if (/^(graph|flowchart)\b/.test(first)) return { format: "mermaid", kind: "flowchart" };
+  if (lines.some((l) => l.startsWith("|"))) return { format: "mid", kind: "sequence" };
+  return { format: "mid", kind: "flowchart" };
 }
 
-const BULLET = /^(\s*)[-*+]\s+(.*\S)\s*$/;
-const PREFIX = /^\s*[-*+]\s+/;
-const LINK = /^\[(.+?)\]\((.+?)\)$/;
-
-function expandTabs(s: string, width = 4): string {
-  let out = "";
-  for (const ch of s) out += ch === "\t" ? " ".repeat(width - (out.length % width)) : ch;
-  return out;
-}
-
-function trimmedSpan(raw: string, at: number): Span {
-  const start = at + raw.length - raw.trimStart().length;
-  return { start, end: start + raw.trim().length };
+export function parse(text: string): Graph {
+  const { format, kind } = detect(text);
+  if (format === "mermaid")
+    return kind === "sequence" ? parseMermaidSequence(text) : parseMermaid(text);
+  return kind === "sequence" ? parseTable(text) : parseMarkdown(text);
 }
 
 function parseMarkdown(text: string): Graph {
   const graph = new Graph();
-  const stack: Array<{ indent: number; name: string }> = [];
+  const stack: Array<{ level: number; name: string }> = [];
 
-  let offset = 0;
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i]!;
-    const lineStart = offset;
-    offset += raw.length + 1;
-    const m = BULLET.exec(expandTabs(raw));
-    if (!m) continue;
+  for (const bullet of readOutline(text, false)!) {
+    const { text: content, start: at } = bullet;
+    if (!content) continue;
+    const { name, nameSpan, label, labelSpan } = splitNode(content);
+    if (!name) throw new ParseError(`Empty node on line ${bullet.line}`);
+    const span = ([start, end]: [number, number]) => ({ start: at + start, end: at + end });
 
-    const indent = m[1]!.length;
-    const prefix = PREFIX.exec(raw)![0].length;
-    const content = raw.slice(prefix).trimEnd();
-    const at = lineStart + prefix;
-    const link = LINK.exec(content);
-    const name = (link ? link[2]! : content).trim();
-    if (!name) throw new ParseError(`Empty node on line ${i + 1}`);
-    const nameSpan = link
-      ? trimmedSpan(link[2]!, at + content.length - 1 - link[2]!.length)
-      : trimmedSpan(content, at);
-    const label = link?.[1]!.trim();
-    const labelSpan = link ? trimmedSpan(link[1]!, at + 1) : undefined;
+    while (stack.length && stack[stack.length - 1]!.level >= bullet.level) stack.pop();
 
-    while (stack.length && stack[stack.length - 1]!.indent >= indent) stack.pop();
-
-    graph.addNode(name, nameSpan);
+    graph.addNode(name, span(nameSpan));
     const parent = stack[stack.length - 1];
-    if (parent) graph.addEdge({ src: parent.name, dst: name, label, span: labelSpan });
-    stack.push({ indent, name });
+    if (parent)
+      graph.addEdge({ src: parent.name, dst: name, label, span: labelSpan && span(labelSpan) });
+    stack.push({ level: bullet.level, name });
   }
 
   return graph;
@@ -121,7 +120,7 @@ interface Ref {
   span: Span;
 }
 
-const ARROWS = ["-.->", "-->", "---", "-.-"];
+const LINKS = ["-.->", "-->", "---", "-.-"];
 const SHAPES = [/^(\w+)\[([^\]]+)\]$/, /^(\w+)\(([^)]+)\)$/, /^(\w+)\{([^}]+)\}$/];
 
 function parseNodeRef(text: string): MNode | null {
@@ -142,7 +141,7 @@ function parseEdgeLine(
   line: string,
   at: number,
 ): { src: Ref; dst: Ref; label?: string; span?: Span } | null {
-  for (const arrow of ARROWS) {
+  for (const arrow of LINKS) {
     const a = arrow.replace(/[.]/g, "\\.");
     const labeled = new RegExp(`^(.+?)\\s*${a}\\s*\\|([^|]+)\\|\\s*(.+)$`, "d").exec(line);
     const m = labeled ?? new RegExp(`^(.+?)\\s*${a}\\s*(.+)$`, "d").exec(line);
@@ -192,7 +191,7 @@ function parseMermaid(text: string): Graph {
       edges.push({ src: e.src.node.id, dst: e.dst.node.id, label: e.label, span: e.span });
       continue;
     }
-    const n = ref(line, at, [0, line.length]);
+    const n = line === "end" ? null : ref(line, at, [0, line.length]);
     if (n) register(n);
     else graph.warnings.push({ line: i + 1, message: `not understood: ${line}` });
   }
@@ -204,91 +203,91 @@ function parseMermaid(text: string): Graph {
   return graph;
 }
 
-interface Cell {
-  text: string;
-  span: Span;
-}
+const ARROW_ALT = ARROWS.map((a) => a.replace(/[()]/g, "\\$&")).join("|");
+const ARROW_CELL = new RegExp(`^(${ARROW_ALT})([+-])?$`);
+const SELF_ARROW = new RegExp(`^(.*?)\\s+(${ARROW_ALT})([+-])?$`);
+const ACTOR = /^actor:\s*/;
 
-function tableCells(raw: string, at: number): Cell[] {
-  const cells: Cell[] = [];
-  let start = raw.indexOf("|") + 1;
-  for (let i = start; i <= raw.length; i++) {
-    if (i < raw.length && (raw[i] !== "|" || raw[i - 1] === "\\")) continue;
-    const cell = raw.slice(start, i);
-    cells.push({ text: cell.trim(), span: trimmedSpan(cell, at + start) });
-    start = i + 1;
+class Activations {
+  private depth = new Map<string, number>();
+
+  apply(m: Message, line: number): void {
+    if (m.activation === "+") this.depth.set(m.to, (this.depth.get(m.to) ?? 0) + 1);
+    if (m.activation !== "-") return;
+    const d = this.depth.get(m.from) ?? 0;
+    if (!d) throw new ParseError(`Line ${line}: "${m.from}" isn't active, so it can't deactivate`);
+    this.depth.set(m.from, d - 1);
   }
-  if (raw.trimEnd().endsWith("|")) cells.pop();
-  return cells;
 }
 
 function parseTable(text: string): Graph {
   const graph = new Graph("mid", "sequence");
-  const rows: Array<{ line: number; cells: Cell[] }> = [];
+  const table = readTable(text)!;
+  for (const line of `${table.before}${table.after}`.split("\n"))
+    if (line.trim() === "autonumber") graph.autonumber = true;
 
-  let offset = 0;
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i]!;
-    const at = offset;
-    offset += raw.length + 1;
-    if (raw.trimStart().startsWith("|")) rows.push({ line: i + 1, cells: tableCells(raw, at) });
-    else if (rows.length) break;
-  }
-
-  const [head, separator, ...body] = rows;
-  if (!separator || !separator.cells.every((c) => /^:?-+:?$/.test(c.text)))
+  const [head, separator, ...body] = table.rows;
+  if (!isSeparator(separator))
     throw new ParseError(`Line ${head!.line + 1}: expected a | --- | row under the participants`);
 
-  const names = head!.cells.map((c) => c.text);
-  names.forEach((name, i) => {
+  const names = head!.cells.map((cell, i) => {
+    const prefix = ACTOR.exec(cell.text)?.[0] ?? "";
+    const name = cell.text.slice(prefix.length);
     if (!name) throw new ParseError(`Line ${head!.line}: column ${i + 1} has no participant`);
     if (graph.nodes.has(name))
       throw new ParseError(`Line ${head!.line}: "${name}" is listed twice`);
-    graph.addNode(name, head!.cells[i]!.span);
+    graph.addNode(name, { start: cell.span.start + prefix.length, end: cell.span.end });
+    if (prefix) graph.actors.add(name);
+    return name;
   });
 
+  const activations = new Activations();
   for (const { line, cells } of body) {
-    cells.forEach((cell, col) => {
-      if (!cell.text) return;
-      const from = names[col];
-      if (from === undefined)
-        throw new ParseError(`Line ${line}: no participant for column ${col + 1}`);
+    const filled = cells.map((cell, col) => ({ cell, col })).filter(({ cell }) => cell.text);
+    if (!filled.length) continue;
+    const extra = filled.find(({ col }) => col >= names.length);
+    if (extra) throw new ParseError(`Line ${line}: no participant for column ${extra.col + 1}`);
 
-      const link = LINK.exec(cell.text);
-      if (link) {
-        const to = link[2]!.trim();
-        if (!graph.nodes.has(to)) throw new ParseError(`Line ${line}: unknown participant "${to}"`);
-        const at = cell.span.start + cell.text.length - 1 - link[2]!.length;
-        graph.addNode(to, trimmedSpan(link[2]!, at));
-        graph.messages.push({
-          from,
-          to,
-          text: link[1]!.trim(),
-          span: trimmedSpan(link[1]!, cell.span.start + 1),
-        });
-        return;
-      }
-      const to = names[col + 1];
-      if (to === undefined)
-        throw new ParseError(
-          `Line ${line}: "${from}" is the last column, so write [message](Receiver)`,
-        );
-      graph.messages.push({ from, to, text: cell.text, span: cell.span });
-    });
+    const arrows = filled.filter(({ cell }) => ARROW_CELL.test(cell.text));
+    const texts = filled.filter(({ cell }) => !ARROW_CELL.test(cell.text));
+    if (texts.length !== 1 || arrows.length > 1)
+      throw new ParseError(
+        `Line ${line}: a row is one message: its text under the sender and an arrow like ->> under the receiver`,
+      );
+
+    const sender = texts[0]!;
+    const receiver = arrows[0];
+    const self = receiver ? undefined : SELF_ARROW.exec(sender.cell.text);
+    const [arrow, activation] = receiver
+      ? ARROW_CELL.exec(receiver.cell.text)!.slice(1)
+      : (self?.slice(2) ?? ["->>"]);
+    const text = self ? self[1]! : sender.cell.text;
+    const message: Message = {
+      from: names[sender.col]!,
+      to: names[receiver?.col ?? sender.col]!,
+      text,
+      arrow: arrow as Arrow,
+      span: { start: sender.cell.span.start, end: sender.cell.span.start + text.length },
+    };
+    if (activation) message.activation = activation as "+" | "-";
+    if (receiver) graph.addNode(message.to, receiver.cell.span);
+    activations.apply(message, line);
+    graph.messages.push(message);
   }
 
   return graph;
 }
 
-const PARTICIPANT = /^(?:participant|actor)\s+(\w+)(?:\s+as\s+(.+))?$/d;
-const SEQ_MESSAGE = /^(\w+)\s*(?:-->>|->>|--x|-x|--\)|-\)|-->|->)\s*[+-]?\s*(\w+)\s*:(.*)$/d;
+const PARTICIPANT = /^(participant|actor)\s+(\w+)(?:\s+as\s+(.+))?$/d;
+const SEQ_MESSAGE = new RegExp(`^(\\w+)\\s*(${ARROW_ALT})\\s*([+-])?\\s*(\\w+)\\s*:(.*)$`, "d");
 
 function parseMermaidSequence(text: string): Graph {
   const graph = new Graph("mermaid", "sequence");
   const labels = new Map<string, string>();
   const spans = new Map<string, Span[]>();
-  const messages: Array<{ from: string; to: string; text: string; span: Span }> = [];
+  const actors = new Set<string>();
+  const messages: Message[] = [];
+  const activations = new Activations();
   const register = (id: string, span: Span, label?: string) => {
     if (label !== undefined || !labels.has(id)) labels.set(id, label ?? labels.get(id) ?? id);
     spans.set(id, [...(spans.get(id) ?? []), span]);
@@ -307,6 +306,10 @@ function parseMermaidSequence(text: string): Graph {
       header = true;
       continue;
     }
+    if (line === "autonumber") {
+      graph.autonumber = true;
+      continue;
+    }
 
     const at = lineStart + raw.length - raw.trimStart().length;
     const span = (m: RegExpExecArray, group: number) => {
@@ -315,14 +318,24 @@ function parseMermaidSequence(text: string): Graph {
     };
     const p = PARTICIPANT.exec(line);
     if (p) {
-      register(p[1]!, span(p, 1), p[2]?.trim());
+      register(p[2]!, span(p, 2), p[3]?.trim());
+      if (p[1] === "actor") actors.add(p[2]!);
       continue;
     }
     const m = SEQ_MESSAGE.exec(line);
     if (m) {
       register(m[1]!, span(m, 1));
-      register(m[2]!, span(m, 2));
-      messages.push({ from: m[1]!, to: m[2]!, text: m[3]!.trim(), span: span(m, 3) });
+      register(m[4]!, span(m, 4));
+      const message: Message = {
+        from: m[1]!,
+        to: m[4]!,
+        text: m[5]!.trim(),
+        arrow: m[2] as Arrow,
+        span: span(m, 5),
+      };
+      if (m[3]) message.activation = m[3] as "+" | "-";
+      activations.apply(message, i + 1);
+      messages.push(message);
       continue;
     }
     graph.warnings.push({ line: i + 1, message: `not understood: ${line}` });
@@ -330,6 +343,7 @@ function parseMermaidSequence(text: string): Graph {
 
   const nameOf = (id: string) => labels.get(id) ?? id;
   for (const [id, list] of spans) for (const s of list) graph.addNode(nameOf(id), s);
+  for (const id of actors) graph.actors.add(nameOf(id));
   for (const m of messages) graph.messages.push({ ...m, from: nameOf(m.from), to: nameOf(m.to) });
   return graph;
 }

@@ -86,7 +86,7 @@
 }
 
 .mid-status {
-  padding: 0 72px 12px 14px;
+  padding: 0 72px 40px 14px;
   white-space: pre-wrap;
   font-size: 13px;
   color: var(--mid-muted);
@@ -154,21 +154,21 @@
   right: 8px;
 }
 
+.mid-bottom-left {
+  top: auto;
+  bottom: 8px;
+  left: 8px;
+}
+
 .mid-bottom-right {
   top: auto;
   right: 8px;
   bottom: 8px;
 }
 
-.mid-vim,
-.mid-swap {
+.mid-swap,
+.mid-kind {
   padding: 3px 12px;
-}
-
-.mid-vim[aria-pressed="true"] {
-  background: var(--mid-hl);
-  color: var(--mid-fg);
-  font-weight: 600;
 }
 
 .mid .mid-copy {
@@ -215,35 +215,35 @@
   white-space: pre;
 }
 
-.mid-box,
-.mid-label-bg {
+.mid-svg-box,
+.mid-svg-label-bg {
   fill: var(--mid-bg);
 }
 
-.mid-node {
+.mid-svg-node {
   cursor: pointer;
 }
 
-.mid-node:hover .mid-box {
+.mid-svg-node:hover .mid-svg-box {
   stroke: var(--mid-accent);
 }
 
-.mid-node.mid-hl .mid-box {
+.mid-svg-node.mid-hl .mid-svg-box {
   fill: var(--mid-hl);
   stroke: var(--mid-accent);
   stroke-width: 2.5;
 }
 
-.mid-message {
+.mid-svg-message {
   cursor: pointer;
 }
 
-.mid-message:hover,
-.mid-message.mid-hl {
+.mid-svg-message:hover,
+.mid-svg-message.mid-hl {
   color: var(--mid-accent);
 }
 
-.mid-message.mid-hl text {
+.mid-svg-message.mid-hl text {
   font-weight: 600;
 }
 
@@ -410,4 +410,48 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
+}
+
+.mid-bullets {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 14px 14px 48px;
+  cursor: text;
+}
+
+.mid-bullet {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.mid-bullet-dot {
+  flex: none;
+  width: 20px;
+  color: var(--mid-muted);
+  text-align: center;
+  user-select: none;
+}
+
+.mid-btext {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 0;
+  outline: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mid-btext:empty:focus::before,
+.mid-bullet:only-child .mid-btext:empty::before {
+  content: attr(data-placeholder);
+  color: var(--mid-muted);
+}
+
+.mid-btext[data-ghost]::after,
+.mid-tcell[data-ghost]::after {
+  content: attr(data-ghost);
+  color: var(--mid-muted);
+  pointer-events: none;
 }

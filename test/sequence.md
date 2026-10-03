@@ -1,6 +1,12 @@
-[Sequence Diagram](https://github.com/mermaid-js/mermaid)
+autonumber
 
-| Client                             | Server | Database |
-| ---------------------------------- | ------ | -------- |
-| Goes to server by default          |        |          |
-| [Bypasses server access](Database) |        |          |
+| actor: User  | Client         | Server         | Database |
+| ------------ | -------------- | -------------- | -------- |
+| Click log in | ->>            |                |          |
+|              | POST /login    | ->>+           |          |
+|              |                | Find user      | -->>     |
+|              |                | -->>           | Row      |
+|              |                | Check password |          |
+|              | -->>-          | Session token  |          |
+|              | Track login    | -)             |          |
+| -x           | Show dashboard |                |          |

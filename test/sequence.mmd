@@ -1,7 +1,12 @@
 sequenceDiagram
+  actor U as User
   participant C as Client
   participant S as Server
-  C->>S: Log in
-  S-->>C: Session token
-  C->>C: Store token
+  U->>C: Log in
+  C->>+S: Credentials
+  S-->>-C: Session token
+  C-)S: Analytics
+  C--xU: Expired
+  C<<->>S: Keepalive
+  C->C: Store token
   %% a comment

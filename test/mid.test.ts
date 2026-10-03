@@ -50,10 +50,22 @@ describe("spans", () => {
     });
   });
 
-  test("tabs and padding inside links", () => {
-    expect(slices("-\tA\n\t- [ go ]( B )")).toEqual({
+  test("tabs and padding around a node and its label", () => {
+    expect(slices("-\tA\n\t-  B :  go ")).toEqual({
       nodes: { A: ["A"], B: ["B"] },
       edges: ["go"],
+    });
+  });
+
+  test("quoted names keep their colons and spans skip the quotes", () => {
+    expect(slices('- a\n  - "Step 1: check": "on: go"\n  - http://x\n  - 10:30')).toEqual({
+      nodes: {
+        a: ["a"],
+        "Step 1: check": ["Step 1: check"],
+        "http://x": ["http://x"],
+        "10:30": ["10:30"],
+      },
+      edges: ["on: go", undefined, undefined],
     });
   });
 
@@ -76,6 +88,17 @@ describe("warnings", () => {
   });
 });
 
+describe("subgraphs", () => {
+  test("subgraph and end lines are warnings, not nodes", () => {
+    const g = parse("graph TD\n  subgraph one\n    A --> B\n  end");
+    expect([...g.nodes]).toEqual(["A", "B"]);
+    expect(g.warnings.map((w) => w.message)).toEqual([
+      "not understood: subgraph one",
+      "not understood: end",
+    ]);
+  });
+});
+
 describe("renderSvg", () => {
   test("escapes names", () => {
     const svg = renderSvg(parse(`- <b>"x"</b> & y`));
@@ -85,6 +108,23 @@ describe("renderSvg", () => {
 
   test("empty graph", () => {
     expect(renderSvg(parse(""))).toContain(`width="0" height="0"`);
+  });
+
+  test("owns the mid-svg class prefix, which the editor never uses", async () => {
+    const svgClasses = new Set<string>();
+    for (const name of CASES)
+      for (const [, list] of renderSvg(parse(await read(name))).matchAll(/class="([^"]*)"/g))
+        for (const c of list!.split(/\s+/)) svgClasses.add(c);
+    expect([...svgClasses].filter((c) => !/^mid-svg(-|$)/.test(c))).toEqual([]);
+
+    const dir = `${import.meta.dir}/../web`;
+    const named: string[] = [];
+    for await (const file of new Bun.Glob("*.ts").scan(dir)) {
+      const src = await Bun.file(`${dir}/${file}`).text();
+      for (const [call] of src.matchAll(/\bel\([^)]*\)|className\s*=[^;]*/g))
+        if (call.includes("mid-svg")) named.push(`${file}: ${call}`);
+    }
+    expect(named).toEqual([]);
   });
 });
 
@@ -141,55 +181,101 @@ describe("format", () => {
 });
 
 describe("sequence diagrams", () => {
-  const messages = (text: string) => parse(text).messages.map((m) => [m.from, m.to, m.text]);
+  const messages = (text: string) =>
+    parse(text).messages.map((m) => [m.from, m.to, m.text, `${m.arrow}${m.activation ?? ""}`]);
+  const table = (...rows: string[]) =>
+    ["| A | B | C |", "| - | - | - |", ...rows.map((r) => `| ${r} |`)].join("\n");
 
-  test("a cell messages the next column unless it links elsewhere", async () => {
+  test("the sender's cell holds the text and the receiver's holds the arrow", async () => {
     const g = parse(await read("sequence.md"));
-    expect([g.format, g.kind]).toEqual(["mid", "sequence"]);
-    expect([...g.nodes]).toEqual(["Client", "Server", "Database"]);
+    expect([g.format, g.kind, g.autonumber]).toEqual(["mid", "sequence", true]);
+    expect([...g.nodes]).toEqual(["User", "Client", "Server", "Database"]);
+    expect([...g.actors]).toEqual(["User"]);
     expect(messages(await read("sequence.md"))).toEqual([
-      ["Client", "Server", "Goes to server by default"],
-      ["Client", "Database", "Bypasses server access"],
+      ["User", "Client", "Click log in", "->>"],
+      ["Client", "Server", "POST /login", "->>+"],
+      ["Server", "Database", "Find user", "-->>"],
+      ["Database", "Server", "Row", "-->>"],
+      ["Server", "Server", "Check password", "->>"],
+      ["Server", "Client", "Session token", "-->>-"],
+      ["Client", "Server", "Track login", "-)"],
+      ["Client", "User", "Show dashboard", "-x"],
     ]);
   });
 
-  test("spans point at participants and message text", async () => {
+  test("every Mermaid arrow works in a cell", () => {
+    for (const arrow of ["->>", "-->>", "->", "-->", "-x", "--x", "-)", "--)", "<<->>", "<<-->>"])
+      expect(messages(table(`hi | ${arrow} |`))).toEqual([["A", "B", "hi", arrow]]);
+  });
+
+  test("a row with only text is a self-message", () => {
+    expect(messages(table(" | think | "))).toEqual([["B", "B", "think", "->>"]]);
+  });
+
+  test("a self-message can end with an arrow", () => {
+    expect(messages(table(" | Retry later -->> | ", " | Start ->>+ | "))).toEqual([
+      ["B", "B", "Retry later", "-->>"],
+      ["B", "B", "Start", "->>+"],
+    ]);
+  });
+
+  test("blank rows are skipped", () => {
+    expect(messages(table(" |  | ", "hi | ->> | "))).toEqual([["A", "B", "hi", "->>"]]);
+  });
+
+  test("spans point at participants, arrow cells, and message text", async () => {
     const text = await read("sequence.md");
     const g = parse(text);
     const slice = (s: { start: number; end: number }) => text.slice(s.start, s.end);
-    expect(g.spans.get("Database")!.map(slice)).toEqual(["Database", "Database"]);
-    expect(g.messages.map((m) => slice(m.span!))).toEqual([
-      "Goes to server by default",
-      "Bypasses server access",
+    expect(g.spans.get("User")!.map(slice)).toEqual(["User", "-x"]);
+    expect(g.spans.get("Database")!.map(slice)).toEqual(["Database", "-->>"]);
+    expect(g.messages.map((m) => slice(m.span!)).slice(0, 2)).toEqual([
+      "Click log in",
+      "POST /login",
     ]);
   });
 
-  test("renderMid writes the table back out exactly, without the title line", async () => {
-    const table = (await expected("sequence.md")).split("\n").slice(2).join("\n");
-    expect(renderMid(parse(await read("sequence.md")))).toBe(table);
-  });
-
-  test("a row can hold several messages, read left to right", () => {
-    const text = [
-      "| client  | server  | database |",
-      "| ------- | ------- | -------- |",
-      "| a thing | another |          |",
-      "|         |         |          |",
-    ].join("\n");
-    expect(messages(text)).toEqual([
-      ["client", "server", "a thing"],
-      ["server", "database", "another"],
-    ]);
+  test("renderMid writes the table back out exactly", async () => {
+    expect(renderMid(parse(await read("sequence.md")))).toBe(await expected("sequence.md"));
   });
 
   test("mermaid sequence input", async () => {
     const g = parse(await read("sequence.mmd"));
-    expect([g.format, g.kind]).toEqual(["mermaid", "sequence"]);
+    expect([g.format, g.kind, [...g.actors]]).toEqual(["mermaid", "sequence", ["User"]]);
     expect(messages(await read("sequence.mmd"))).toEqual([
-      ["Client", "Server", "Log in"],
-      ["Server", "Client", "Session token"],
-      ["Client", "Client", "Store token"],
+      ["User", "Client", "Log in", "->>"],
+      ["Client", "Server", "Credentials", "->>+"],
+      ["Server", "Client", "Session token", "-->>-"],
+      ["Client", "Server", "Analytics", "-)"],
+      ["Client", "User", "Expired", "--x"],
+      ["Client", "Server", "Keepalive", "<<->>"],
+      ["Client", "Client", "Store token", "->"],
     ]);
+  });
+
+  test.each(["sequence.md", "sequence.mmd"])(
+    "%s keeps arrows and activations through Mermaid -> Mid -> Mermaid",
+    async (name) => {
+      const mmd = renderMermaid(parse(await read(name)));
+      expect(renderMermaid(parse(renderMid(parse(mmd))))).toBe(mmd);
+    },
+  );
+
+  test("self-message spans cover the text, not the arrow", () => {
+    const text = table(" | Retry -->> | ");
+    const { span } = parse(text).messages[0]!;
+    expect(text.slice(span!.start, span!.end)).toBe("Retry");
+  });
+
+  test("\\n breaks message text onto several lines", () => {
+    const ascii = renderAscii(parse("| A | B |\n| - | - |\n| one\\ntwo | ->> |\n"));
+    const lines = ascii.split("\n");
+    const at = lines.findIndex((l) => l.includes("one"));
+    expect([lines[at + 1]!.includes("two"), lines[at + 2]!.includes("├")]).toEqual([true, true]);
+  });
+
+  test("mermaid autonumber", () => {
+    expect(parse("sequenceDiagram\n  autonumber\n  A->>B: hi").autonumber).toBe(true);
   });
 
   test("mermaid lines that are not messages are warnings", () => {
@@ -198,14 +284,18 @@ describe("sequence diagrams", () => {
     ]);
   });
 
+  const ROW =
+    "Line 3: a row is one message: its text under the sender and an arrow like ->> under the receiver";
   test.each([
-    [
-      "| A | B |\n| - | - |\n| | x |",
-      'Line 3: "B" is the last column, so write [message](Receiver)',
-    ],
-    ["| A | B |\n| - | - |\n| [x](C) | |", 'Line 3: unknown participant "C"'],
+    [table("hi | there | "), ROW],
+    [table("->> | ->> | "), ROW],
+    [table("hi | ->> | ->>"), ROW],
+    [table("hi | ->> | ", "-->>- | back | "), `Line 4: "B" isn't active, so it can't deactivate`],
+    ["sequenceDiagram\n  A-->>-B: x", `Line 2: "A" isn't active, so it can't deactivate`],
+    ["| A | B |\n| - | - |\n| | | x |", "Line 3: no participant for column 3"],
     ["| A | B |\n| x | y |", "Line 2: expected a | --- | row under the participants"],
     ["| A | A |\n| - | - |", 'Line 1: "A" is listed twice'],
+    ["| actor: | B |\n| - | - |", "Line 1: column 1 has no participant"],
   ])("rejects %j", (text, message) => {
     expect(() => parse(text)).toThrow(message);
   });
