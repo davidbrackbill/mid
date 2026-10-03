@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="mid-svg" width="63" height="252" viewBox="0 0 63 252" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+<svg xmlns="http://www.w3.org/2000/svg" class="mid-svg" width="63" height="270" viewBox="0 0 63 270" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
 <defs><marker id="mid-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
-<path class="mid-edge" d="M31.5 90L31.5 135L31.5 180" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
-<g class="mid-label"><rect class="mid-label-bg" x="9.5" y="126" width="44" height="18" fill="#fff"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="135">x\ny</tspan></text></g>
-<g class="mid-node" data-node="a\nb"><rect class="mid-box" x="9" y="18" width="45" height="72" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="45">a</tspan><tspan x="31.5" y="63">b</tspan></text></g>
-<g class="mid-node" data-node="c"><rect class="mid-box" x="9" y="180" width="45" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="207">c</tspan></text></g>
+<path class="mid-svg-edge" d="M31.5 90L31.5 144L31.5 198" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mid-arrow)"/>
+<g class="mid-svg-label"><rect class="mid-svg-label-bg" x="23" y="126" width="17" height="36" fill="#fff"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="135">x</tspan><tspan x="31.5" y="153">y</tspan></text></g>
+<g class="mid-svg-node" data-node="a\nb"><rect class="mid-svg-box" x="9" y="18" width="45" height="72" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="45">a</tspan><tspan x="31.5" y="63">b</tspan></text></g>
+<g class="mid-svg-node" data-node="c"><rect class="mid-svg-box" x="9" y="198" width="45" height="54" rx="6" fill="#fff" stroke="currentColor" stroke-width="1.5"/><text fill="currentColor" text-anchor="middle" dominant-baseline="central"><tspan x="31.5" y="225">c</tspan></text></g>
 </svg>

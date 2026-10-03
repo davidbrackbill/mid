@@ -1,0 +1,7 @@
+preload = ["./scripts/bun-version.ts"]
+
+[test]
+preload = ["./scripts/bun-version.ts"]
+
+[run]
+bun = true

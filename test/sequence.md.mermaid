@@ -1,6 +1,14 @@
 sequenceDiagram
-  participant p0 as Client
-  participant p1 as Server
-  participant p2 as Database
-  p0->>p1: Goes to server by default
-  p0->>p2: Bypasses server access
+  autonumber
+  actor p0 as User
+  participant p1 as Client
+  participant p2 as Server
+  participant p3 as Database
+  p0->>p1: Click log in
+  p1->>+p2: POST /login
+  p2-->>p3: Find user
+  p3-->>p2: Row
+  p2->>p2: Check password
+  p2-->>-p1: Session token
+  p1-)p2: Track login
+  p1-xp0: Show dashboard
